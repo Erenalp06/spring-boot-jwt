@@ -1,6 +1,7 @@
 package com.example.springbootsecuritytest.config;
 
 import com.example.springbootsecuritytest.token.TokenRepository;
+import com.example.springbootsecuritytest.user.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final TokenRepository tokenRepository;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(
@@ -41,12 +43,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         jwt = authHeader.substring(7);
         userEmail = jwtService.extractUsername(jwt);
+        var user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("hata"));
         if(userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null){
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-            var isTokenValid = tokenRepository.findByToken(jwt)
-                    .map(t -> !t.isExpired() && !t.isRevoked())
-                    .orElse(false);
-            if(jwtService.isTokenValid(jwt, userDetails) && isTokenValid){
+            var isTokenValid = tokenRepository.findTokenByUserId(user.getId())
+                    .orElse(null);
+
+            if(jwtService.isTokenValid(jwt, userDetails) && !isTokenValid.getRevoked()){
                 // kimlik doğrulama nesnesi oluşturma
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,

@@ -1,6 +1,7 @@
 package com.example.springbootsecuritytest.config;
 
 import com.example.springbootsecuritytest.token.TokenRepository;
+import com.example.springbootsecuritytest.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 public class LogoutService implements LogoutHandler {
 
     private final TokenRepository tokenRepository;
+    private final UserRepository userRepository;
+    private final JwtService jwtService;
 
 
     @Override
@@ -27,13 +30,14 @@ public class LogoutService implements LogoutHandler {
             return;
         }
         jwt = authHeader.substring(7);
-        var storedToken = tokenRepository.findByToken(jwt)
-                .orElse(null);
-        if(storedToken != null){
-            storedToken.setExpired(true);
-            storedToken.setRevoked(true);
-            tokenRepository.save(storedToken);
+        final String username = jwtService.extractUsername(jwt);
+        var user = userRepository.findByEmail(username).orElseThrow(() -> new IllegalStateException("user not found"));
+        var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
+        if(token != null){
+            token.setRevoked(true);
+            tokenRepository.save(token);
         }
+
 
     }
 }
