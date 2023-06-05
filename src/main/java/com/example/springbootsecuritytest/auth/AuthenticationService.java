@@ -42,7 +42,7 @@ public class AuthenticationService {
         var savedUser = repository.save(user);
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
-        saveUserToken(savedUser);
+        saveUserToken(savedUser, jwtToken);
         return AuthenticationResponse.builder()
                 .accessToken(jwtToken)
                 .refreshToken(refreshToken)
@@ -59,10 +59,10 @@ public class AuthenticationService {
                 .orElseThrow();
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
-        saveUserToken(user);
+        saveUserToken(user, jwtToken);
         var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
         if(token != null){
-            token.setRevoked(false);
+            token.setExpiration(jwtService.extractExpiration(jwtToken).getTime());
             tokenRepository.save(token);
         }
         return AuthenticationResponse.builder()
@@ -77,10 +77,11 @@ public class AuthenticationService {
         return jwtService.isTokenValid(token, userDetails);
     }
 
-    private void saveUserToken(User user) {
+    private void saveUserToken(User user, String jwt) {
+        long expiration = jwtService.extractExpiration(jwt).getTime();
         var token = Token.builder()
                 .user(user)
-                .revoked(false)
+                .expiration(expiration)
                 .build();
         var token1 = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
         if(token1 == null){
@@ -107,7 +108,12 @@ public class AuthenticationService {
                     .orElseThrow();
             if(jwtService.isTokenValid(refreshToken, user)) {
                 var accessToken = jwtService.generateToken(user);
-                saveUserToken(user);
+                saveUserToken(user, accessToken);
+                var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
+                if(token != null){
+                    token.setExpiration(jwtService.extractExpiration(accessToken).getTime());
+                    tokenRepository.save(token);
+                }
                 return AuthenticationResponse.builder()
                         .accessToken(accessToken)
                         .refreshToken(refreshToken)

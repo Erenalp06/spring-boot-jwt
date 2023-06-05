@@ -49,8 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
             var isTokenValid = tokenRepository.findTokenByUserId(user.getId())
                     .orElse(null);
-
-            if(jwtService.isTokenValid(jwt, userDetails) && !isTokenValid.getRevoked()){
+            if(jwtService.isTokenValid(jwt, userDetails) && isTokenValid.getExpiration() == jwtService.extractExpiration(jwt).getTime()){
                 // kimlik doğrulama nesnesi oluşturma
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,

@@ -21,5 +21,5 @@ public class Token {
     @JoinColumn(name = "user_id")
     private User user;
 
-    private Boolean revoked;
+    private long expiration;
 }

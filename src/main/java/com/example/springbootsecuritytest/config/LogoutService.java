@@ -34,7 +34,7 @@ public class LogoutService implements LogoutHandler {
         var user = userRepository.findByEmail(username).orElseThrow(() -> new IllegalStateException("user not found"));
         var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
         if(token != null){
-            token.setRevoked(true);
+            token.setExpiration(0L);
             tokenRepository.save(token);
         }
 
