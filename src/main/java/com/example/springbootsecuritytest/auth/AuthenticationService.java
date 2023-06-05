@@ -3,27 +3,21 @@ package com.example.springbootsecuritytest.auth;
 import com.example.springbootsecuritytest.config.JwtService;
 import com.example.springbootsecuritytest.token.Token;
 import com.example.springbootsecuritytest.token.TokenRepository;
-import com.example.springbootsecuritytest.token.TokenType;
 import com.example.springbootsecuritytest.user.Role;
 import com.example.springbootsecuritytest.user.User;
 import com.example.springbootsecuritytest.user.UserRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
@@ -54,22 +48,6 @@ public class AuthenticationService {
                 .refreshToken(refreshToken)
                 .build();
     }
-
-    private void revokeAllUserTokens(User user){
-        var validUserTokens = tokenRepository.findAllValidTokensByUser(user.getId());
-        if(validUserTokens.isEmpty()){
-            return;
-        }
-        validUserTokens.forEach(t -> {
-            t.setExpired(true);
-            t.setRevoked(true);
-        });
-        tokenRepository.saveAll(validUserTokens);
-
-    }
-
-
-
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -81,8 +59,12 @@ public class AuthenticationService {
                 .orElseThrow();
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
-        revokeAllUserTokens(user);
         saveUserToken(user, jwtToken);
+        var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
+        if(token != null){
+            token.setExpiration(jwtService.extractExpiration(jwtToken).getTime());
+            tokenRepository.save(token);
+        }
         return AuthenticationResponse.builder()
                 .accessToken(jwtToken)
                 .refreshToken(refreshToken)
@@ -95,15 +77,17 @@ public class AuthenticationService {
         return jwtService.isTokenValid(token, userDetails);
     }
 
-    private void saveUserToken(User user, String jwtToken) {
+    private void saveUserToken(User user, String jwt) {
+        long expiration = jwtService.extractExpiration(jwt).getTime();
         var token = Token.builder()
                 .user(user)
-                .token(jwtToken)
-                .tokenType(TokenType.BEARER)
-                .expired(false)
-                .revoked(false)
+                .expiration(expiration)
                 .build();
-        tokenRepository.save(token);
+        var token1 = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
+        if(token1 == null){
+            tokenRepository.save(token);
+        }
+
     }
 
 
@@ -124,13 +108,16 @@ public class AuthenticationService {
                     .orElseThrow();
             if(jwtService.isTokenValid(refreshToken, user)) {
                 var accessToken = jwtService.generateToken(user);
-                revokeAllUserTokens(user);
                 saveUserToken(user, accessToken);
-                var authResponse = AuthenticationResponse.builder()
+                var token = tokenRepository.findTokenByUserId(user.getId()).orElse(null);
+                if(token != null){
+                    token.setExpiration(jwtService.extractExpiration(accessToken).getTime());
+                    tokenRepository.save(token);
+                }
+                return AuthenticationResponse.builder()
                         .accessToken(accessToken)
                         .refreshToken(refreshToken)
                         .build();
-                return authResponse;
             }
 
         }

@@ -6,7 +6,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate.format_sql: true
@@ -20,4 +20,5 @@ application:
       expiration : 86400000 # a day
       refresh-token:
         expiration: 604800000 # 7 days
-
+server:
+  port: 9399
